@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Image viewer</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #main-canvas {
+      image-rendering: pixelated;
+    }
+
+    #drop-zone {
+      border: 2px dashed #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      display: inline-block;
+    }
+
+    #drop-zone.dragover {
+      border-color: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="root" class="p-4">
+    <label id="drop-zone" class="mb-2">
+      <input id="file-input" type="file" class="border rounded hidden" />
+      <canvas id="main-canvas" class="size-[256px]"></canvas>
+    </label>
+    <div id="slide-controls" class="max-w-[512px] mb-2">
+      <input id="slide-input" type="range" min="0" max="0" value="0" step="1" class="w-full" list="markers" />
+      <datalist id="markers">
+      </datalist>
+    </div>
+    <div id="play-controls" class="mb-2 flex items-center">
+      <button id="play-button" class="border rounded bg-blue-500 text-white px-2 mr-2">Play</button>
+      <div class="ml-4 mr-1">Rate:</div>
+      <input id="rate-input" type="number" value="6" placeholder="rate" class="border rounded px-2 w-[50px]" />
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById('main-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    const playControl = { isPlaying: false };
+    const playButton = document.getElementById('play-button');
+
+    const img = new Image();
+    const renderImage = (index) => {
+      if (!img.width || !img.height) {
+        return;
+      }
+      // 设置画布大小与图片一致
+      const imgSize = img.height;
+      canvas.width = imgSize;
+      canvas.height = imgSize;
+      // 将图片绘制到画布上
+      ctx.drawImage(
+        img,
+        index * imgSize, // sX
+        0,               // sY
+        imgSize,         // sWidth
+        imgSize,         // sHeight
+        0,               // dX
+        0,               // dY
+        imgSize,         // dWidth
+        imgSize,         // dHeight
+      );
+    };
+
+    const slideInput = document.getElementById('slide-input');
+    slideInput.addEventListener('input', (event) => {
+      renderImage(Number(slideInput.value));
+    });
+
+    const handleFile = (file) => {
+      if (file) {
+        // 创建 FileReader 对象
+        const reader = new FileReader();
+
+        // 定义 FileReader 的 onload 事件处理程序
+        reader.onload = (e) => {
+          img.onload = () => {
+            playControl.isPlaying = false;
+            playButton.textContent = 'Play';
+            if (img.height) {
+              slideInput.max = Math.max(0, Math.round(img.width / img.height) - 1);
+              document.getElementById('markers').innerHTML = '';
+              for (let i=0; i <= slideInput.max; i++) {
+                const option = document.createElement('option');
+                option.value = i;
+                // option.textContent = i;
+                document.getElementById('markers').appendChild(option);
+              }
+              renderImage(Number(slideInput.value));
+            }
+          };
+          // 将 FileReader 读取的结果设置为 Image 对象的源
+          img.src = e.target.result;
+        };
+
+        // 读取文件为 Data URL
+        reader.readAsDataURL(file);
+      }
+    };
+
+    const fileInput = document.getElementById('file-input');
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      handleFile(file);
+    });
+
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (event) => {
+      event.preventDefault();
+      dropZone.classList.remove('dragover');
+
+      const file = event.dataTransfer.files[0];
+      handleFile(file);
+    });
+
+    playButton.addEventListener('click', (event) => {
+      let timeout;
+      if (playControl.isPlaying) {
+        playControl.isPlaying = false;
+        timeout && clearTimeout(timeout);
+        timeout = null;
+        playButton.textContent = 'Play';
+        return;
+      }
+      const rateInput = document.querySelector('input[type="number"]');
+      if (Number(rateInput.value) > 0) {
+        playControl.isPlaying = true;
+        const autoRender = () => {
+          const rate = Number(rateInput.value);
+          const slideValue = Number(slideInput.value);
+          renderImage(slideValue);
+          if (slideInput.max) {
+            slideInput.value = (slideValue + 1) % (Number(slideInput.max) + 1);
+          }
+          if (playControl.isPlaying && rate > 0) {
+            timeout = setTimeout(autoRender, 1000 / rate);
+          }
+        };
+        autoRender();
+        playButton.textContent = 'Pause';
+      }
+    });
+
+    const rateInput = document.getElementById('rate-input');
+    rateInput.addEventListener('input', (event) => {
+      renderImage(Number(slideInput.value));
+    });
+  </script>
+</body>
+
+</html>
